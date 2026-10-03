@@ -1,0 +1,37 @@
+name: Deploy Terraform via OIDC
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  id-token: write   # REQUIRED: Grants workflow permission to fetch GitHub OIDC JWT token
+  contents: read    # REQUIRED: Grants permission to checkout the code
+
+jobs:
+  terraform-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActions-Terraform-Role
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.0
+
+      - name: Verify AWS Caller Identity
+        run: aws sts get-caller-identity
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
