@@ -1,21 +1,30 @@
-name: Deploy Terraform via OIDC
+name: Deploy AWS with Azure Backend
 
 on:
   push:
     branches: [ "main" ]
 
 permissions:
-  id-token: write   # REQUIRED: Grants workflow permission to fetch GitHub OIDC JWT token
-  contents: read    # REQUIRED: Grants permission to checkout the code
+  id-token: write   # Grants OIDC token generation for both Azure and AWS
+  contents: read    # Grants permission to checkout the code
 
 jobs:
-  terraform-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+        # 1. Authenticate to Azure (for the azurerm backend)
+      - name: Azure Login(OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+        # 2. Authenticate to AWS (for the AWS provider)
       - name: Configure AWS Credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -31,7 +40,17 @@ jobs:
         run: aws sts get-caller-identity
 
       - name: Terraform Init
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.AZURE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.AZURE_STORAGE_CONTAINER }}" \
+            -backend-config="key=aws-vpc/terraform.tfstate" \
+            -backend-config="use_oidc=true" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
 
       - name: Terraform Apply
         run: terraform apply -auto-approve
