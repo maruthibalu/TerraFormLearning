@@ -82,5 +82,5 @@ jobs:
         - name: Preview development deployment
           run: |
             az deployment group what-if \
-              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --resource-group "${{ vars.AZURE_DEV_RESOURCE_GROUP }}" \
               --parameters Azure/environments/dev.bicepparam
