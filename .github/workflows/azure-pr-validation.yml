@@ -8,11 +8,15 @@ on:
         - ".github/workflows/azure-pr-validation.yml"
 permissions:
   contents: read
+  id-token: write
+  
 
 jobs:
   bicep-validation:
     name: Bicep Validation
     runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    
 
     steps:
         - name: Checkout repository
@@ -67,3 +71,16 @@ jobs:
             framework: bicep
             quiet: false
             soft_fail: false
+        
+        - name: Login to Azure using OIDC
+          uses: azure/login@v2
+          with:
+            client-id: ${{ secrets.AZURE_PLAN_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        
+        - name: Validate development deployment
+          run: |
+            az deployment group validate \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --parameters Azure/environments/dev.bicepparam
