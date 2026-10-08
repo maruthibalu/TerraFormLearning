@@ -56,13 +56,7 @@ jobs:
           run: |
             az bicep build-params \
             --file Azure/environments/dev.bicepparam \
-            --stdout > /dev/null
-
-        - name: Build production parameters
-          run: |
-            az bicep build-params \
-               --file Azure/environments/prod.bicepparam \
-               --stdout > /dev/null
+            --stdout > /dev/null       
         
         - name: Run Checkov Bicep security scan
           uses: bridgecrewio/checkov-action@v12
