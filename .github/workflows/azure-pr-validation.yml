@@ -84,3 +84,9 @@ jobs:
             az deployment group validate \
               --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
               --parameters Azure/environments/dev.bicepparam
+        
+        - name: Preview development deployment
+          run: |
+            az deployment group what-if \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --parameters Azure/environments/dev.bicepparam
