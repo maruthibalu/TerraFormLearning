@@ -1,0 +1,69 @@
+name: Azure Bicep PR Validation
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+        - "Azure/**"
+        - ".github/workflows/azure-pr-validation.yml"
+permissions:
+  contents: read
+
+jobs:
+  bicep-validation:
+    name: Bicep Validation
+    runs-on: ubuntu-latest
+
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Install Bicep CLI
+          run: az bicep install
+        
+        - name: Display tool versions
+          run: |
+            az --version
+            az bicep version
+        
+        - name: Check Bicep formatting
+          shell: bash
+          run: |
+            find Azure -type f \( -name "*.bicep" -o -name "*.bicepparam" \) -print0 |
+            while IFS= read -r -d '' file; do
+                echo "Formatting check: $file"
+                az bicep format --file "$file"
+            done
+
+            git diff --exit-code -- Azure/
+        
+        - name: Lint Bicep templates
+          shell: bash
+          run: |
+            find Azure -type f -name "*.bicep" -print0 |
+            while IFS= read -r -d '' file; do
+                echo "Linting: $file"
+                az bicep lint --file "$file"
+            done
+        - name: Build main Bicep templates
+          run: az bicep build --file Azure/main.bicep --stdout > /dev/null
+        
+        - name: Build development parameters
+          run: |
+            az bicep build-params \
+            --file Azure/environments/dev.bicepparam \
+            --stdout > /dev/null
+
+        - name: Build production parameters
+          run: |
+            az bicep build-params \
+               --file Azure/environments/prod.bicepparam \
+               --stdout > /dev/null
+        
+        - name: Run Checkov Bicep security scan
+          uses: bridgecrewio/checkov-action@v12
+          with:
+            directory: Azure
+            framework: bicep
+            quiet: false
+            soft_fail: false
