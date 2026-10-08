@@ -1,0 +1,84 @@
+name: Azure Bicep PR Validation
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+  
+
+jobs:
+  bicep-validation:
+    name: Bicep Validation
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    
+
+    steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+
+        - name: Install Bicep CLI
+          run: az bicep install
+        
+        - name: Display tool versions
+          run: |
+            az --version
+            az bicep version
+        
+        - name: Check Bicep formatting
+          shell: bash
+          run: |
+            find Azure -type f \( -name "*.bicep" -o -name "*.bicepparam" \) -print0 |
+            while IFS= read -r -d '' file; do
+                echo "Formatting check: $file"
+                az bicep format --file "$file"
+            done
+
+            git diff --exit-code -- Azure/
+        
+        - name: Lint Bicep templates
+          shell: bash
+          run: |
+            find Azure -type f -name "*.bicep" -print0 |
+            while IFS= read -r -d '' file; do
+                echo "Linting: $file"
+                az bicep lint --file "$file"
+            done
+        - name: Build main Bicep templates
+          run: az bicep build --file Azure/main.bicep --stdout > /dev/null
+        
+        - name: Build development parameters
+          run: |
+            az bicep build-params \
+            --file Azure/environments/dev.bicepparam \
+            --stdout > /dev/null       
+        
+        - name: Run Checkov Bicep security scan
+          uses: bridgecrewio/checkov-action@v12
+          with:
+            directory: Azure
+            framework: bicep
+            quiet: false
+            soft_fail: false
+        
+        - name: Login to Azure using OIDC
+          uses: azure/login@v2
+          with:
+            client-id: ${{ secrets.AZURE_PLAN_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        
+        - name: Validate development deployment
+          run: |
+            az deployment group validate \
+              --resource-group "${{ vars.AZURE_DEV_RESOURCE_GROUP }}" \
+              --parameters Azure/environments/dev.bicepparam
+        
+        - name: Preview development deployment
+          run: |
+            az deployment group what-if \
+              --resource-group "${{ vars.AZURE_DEV_RESOURCE_GROUP }}" \
+              --parameters Azure/environments/dev.bicepparam
