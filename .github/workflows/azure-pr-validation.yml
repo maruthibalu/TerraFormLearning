@@ -3,9 +3,7 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-        - "Azure/**"
-        - ".github/workflows/azure-pr-validation.yml"
+
 permissions:
   contents: read
   id-token: write
